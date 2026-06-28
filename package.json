@@ -1,0 +1,24 @@
+{
+  "name": "proxy-cli",
+  "version": "1.0.0",
+  "description": "Thin wrapper over Bright Data proxies (residential rotating + Web Unlocker) for cad's county-recorder scrapers",
+  "type": "module",
+  "bin": {
+    "proxy-cli": "./bin/proxy-cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
