@@ -66,6 +66,15 @@ function fetchOnce(target: string, proxy: ProxyParts, timeoutMs: number): Promis
 
       // Run the origin request over the CONNECT tunnel. For https we wrap the tunnel
       // socket in TLS via createConnection; for http we hand the raw socket back.
+      //
+      // Bright Data's residential superproxy does SSL interception (MITM): the cert
+      // presented to us over the tunnel is signed by Bright Data's own CA, not the
+      // origin's, so default cert verification fails with a self-signed-chain error.
+      // This is the curl `-k` situation — we MUST disable verification on the proxied
+      // leg (rejectUnauthorized:false on both the TLS socket and the https.request).
+      // We're reading FREE public records through a paid IP, not protecting secrets, so
+      // skipping verification on the proxy hop is the correct tradeoff (and unavoidable
+      // with Bright Data's MITM).
       const originReq = isHttps
         ? https.request(
             {
@@ -75,7 +84,9 @@ function fetchOnce(target: string, proxy: ProxyParts, timeoutMs: number): Promis
               path: u.pathname + u.search,
               headers,
               timeout: timeoutMs,
-              createConnection: () => tlsConnect({ socket, servername: u.hostname }),
+              rejectUnauthorized: false,
+              createConnection: () =>
+                tlsConnect({ socket, servername: u.hostname, rejectUnauthorized: false }),
             },
             onResponse
           )

@@ -135,7 +135,10 @@ program
       if (hasResidential) {
         for (let i = 0; i < n; i++) {
           try {
-            const res = await residentialFetch("https://lumtest.com/myip.json", {
+            // api.ipify.org returns {"ip":"x.x.x.x"} for the egress IP; lumtest's
+            // myip.json dropped its top-level `ip` key (now only geo/asn), which made
+            // every IP read back as "?" and `rotated` always false. ipify keeps it.
+            const res = await residentialFetch("https://api.ipify.org?format=json", {
               session: "rand",
               country: opts.country,
               timeoutMs: 30_000,
