@@ -3,6 +3,7 @@ import https from "https";
 import { connect as tlsConnect } from "tls";
 import { URL } from "url";
 import { buildResidential, type BuildOpts, type ProxyParts } from "./proxy.js";
+import { buildWebshare } from "./webshare.js";
 
 export interface FetchResult {
   status: number;
@@ -19,7 +20,7 @@ export interface FetchResult {
  * to the origin over that tunnel and send a raw GET. This keeps the dependency surface
  * to Node built-ins (no proxy-agent package) and works for both http and https targets.
  */
-function fetchOnce(target: string, proxy: ProxyParts, timeoutMs: number): Promise<FetchResult> {
+export function fetchOnce(target: string, proxy: ProxyParts, timeoutMs: number): Promise<FetchResult> {
   return new Promise((resolve, reject) => {
     const u = new URL(target);
     const proxyUrl = new URL(proxy.server);
@@ -154,4 +155,44 @@ export async function residentialFetch(
     }
   }
   throw lastErr ?? new Error("residential fetch failed");
+}
+
+export interface WebshareFetchOpts {
+  timeoutMs?: number;
+  retries?: number;
+}
+
+/**
+ * Fetch through a Webshare DATACENTER endpoint. Each attempt picks a FRESH random US
+ * endpoint (per-request IP rotation across the pool), so a 429/5xx retry lands on a
+ * different exit IP — the datacenter analogue of residential session rotation. Returns
+ * the egress endpoint as `session` so a caller can prove rotation.
+ */
+export async function webshareFetch(
+  target: string,
+  opts: WebshareFetchOpts = {}
+): Promise<FetchResult> {
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const retries = opts.retries ?? 3;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    // Fresh random endpoint each attempt -> a different datacenter exit IP per retry.
+    const proxy = await buildWebshare();
+    try {
+      const res = await fetchOnce(target, proxy, timeoutMs);
+      if ((res.status === 429 || res.status === 403 || res.status >= 500) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)));
+        continue;
+      }
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)));
+        continue;
+      }
+    }
+  }
+  throw lastErr ?? new Error("webshare fetch failed");
 }

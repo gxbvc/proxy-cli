@@ -1,44 +1,63 @@
 # proxy-cli
 
-Thin wrapper over Bright Data proxies (residential rotating + Web Unlocker) so cad's
-county-recorder scrapers never hardcode proxy config. Centralizes creds, zone selection,
-country, session rotation, and retry/backoff.
+Proxy wrapper for cad's county-recorder scrapers so they never hardcode proxy config.
+Two backends: **Webshare datacenter (default)** and Bright Data (residential + Web Unlocker).
+Centralizes creds, zone selection, IP rotation, and retry/backoff.
 
 Why: the deed-IMAGE endpoints on the free county portals are **per-IP throttled**
 (publicsearch.us Neumo WAF ~1 req/60s → 429; tccsearch.org image viewer per-IP quota).
 The whole cluster shares one NAT IP (70.123.104.69), so one IP bottlenecks everything.
-Rotating residential IPs defeat the throttle. Data stays free public records; we pay only
-for IP rotation.
+Rotating proxy IPs defeat the throttle. Data stays free public records; we pay only for
+IP rotation.
+
+**Webshare vs Bright Data (Plan 32 P32):** Bright Data now KYC/robots.txt-blocks
+publicsearch.us (402 on both zones). Webshare does NOT enforce robots.txt/KYC and a
+Webshare datacenter US IP returns 200 + real content, so the recorder scrape defaults to
+the `webshare` zone. The datacenter plan is a FIXED POOL of `<ip:port>` endpoints behind
+one user/pass (no rotating superproxy) — so "rotation" = picking a different endpoint per
+request. The live pool is fetched from the Webshare API (`proxy/list`) and cached ~5 min,
+and a fresh random US endpoint is chosen per `url`/`fetch`/retry call.
 
 ## Commands
 
 ```bash
-proxy-cli url   [--zone residential] [--country us] [--session rand|<id>] [--json]   # print a ready-to-use proxy URL
-proxy-cli fetch <url> [--zone residential|unlocker] [--render] [--country us] [--session rand] [--retries N]  # one-shot fetch -> body
+proxy-cli url   [--zone webshare] [--json]                                            # print a ready-to-use proxy URL (random US datacenter IP)
+proxy-cli url   --zone residential [--country us] [--session rand|<id>] [--json]      # Bright Data superproxy URL
+proxy-cli fetch <url> [--zone webshare|residential|unlocker] [--render] [--retries N] # one-shot fetch -> body
 proxy-cli zones                                                                       # list active Bright Data zones
-proxy-cli check [--country us] [--n 3]                                                # auth + tiny residential fetch; prints egress IP(s), proves rotation
+proxy-cli check [--zone webshare] [--n 3]                                             # auth + tiny fetches; prints egress IP(s), proves rotation
 ```
 
 All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data":...}` / `{"ok":false,"error":...,"code":...}`.
 
 ## Notes
 
-- `url`: residential only. Returns the superproxy URL with embedded creds; `--json` returns
-  `{server, username, password}` for Playwright's `proxy={...}`. No `--session` = pure rotating
-  (new IP per TCP connection); `--session rand` = sticky token (same IP for ~minutes);
+- `url --zone webshare` (default): picks a random valid US endpoint from the live Webshare pool
+  and returns `http://user:pass@ip:port`. `--json` returns `{server, username, password, city}`
+  for Playwright's `proxy={...}`. Each call is a fresh random IP (per-session rotation). The
+  returned `session` is the chosen `ip:port`.
+- `url --zone residential`: Bright Data superproxy URL with embedded creds. No `--session` = pure
+  rotating (new IP per TCP connection); `--session rand` = sticky token (same IP for ~minutes);
   `--session foo` = a fixed sticky token you control.
-- `fetch --zone residential`: HTTP(S) through the superproxy via a CONNECT tunnel; rotates IP on
-  every retry (returns `status`, `session`, `body`).
+- `fetch --zone webshare` (default): HTTP(S) through a random datacenter endpoint via a CONNECT
+  tunnel; each retry picks a NEW endpoint (returns `status`, `session=ip:port`, `body`).
+- `fetch --zone residential`: same CONNECT tunnel through the Bright Data superproxy.
 - `fetch --zone unlocker`: POSTs `api.brightdata.com/request` with the unlocker zone; `--render`
   JS-renders. For sites where a raw residential GET still gets bot-blocked.
-- `check` proves rotation: back-to-back fetches of `lumtest.com/myip.json`, each a fresh session,
-  printing distinct egress IPs.
+- `check --zone webshare` (default): lists the US pool, then back-to-back fetches of
+  `api.ipify.org`, each on a fresh endpoint, printing distinct egress IPs (`rotated:true`).
 
 ## Env
 
 Requires `.env` (this dir). The API key is auto-reused from `~/tools/brightdata-cli/.env`.
 
 ```
+# Webshare datacenter (default zone)
+WEBSHARE_API_TOKEN            # dashboard.webshare.io/userapi/keys (lists the live IP pool)
+WEBSHARE_PROXY_USER           # proxy username (Proxy > Settings)
+WEBSHARE_PROXY_PASS           # proxy password
+
+# Bright Data (residential + unlocker)
 BRIGHTDATA_API_KEY            # reused from brightdata-cli
 BRIGHTDATA_CUSTOMER_ID        # hl_5387bb99 (the brd-customer-<id> segment)
 BRIGHTDATA_RESIDENTIAL_ZONE   # residential zone NAME
@@ -46,7 +65,7 @@ BRIGHTDATA_RESIDENTIAL_PASS   # residential zone password
 BRIGHTDATA_UNLOCKER_ZONE      # web unlocker zone NAME
 ```
 
-See `.env.example`. Create zones at https://brightdata.com/cp/zones.
+See `.env.example`. Webshare: https://dashboard.webshare.io. Bright Data zones: https://brightdata.com/cp/zones.
 
 ## Wire into Playwright (Python, cluster/cad_browser.py)
 

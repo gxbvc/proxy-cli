@@ -62,4 +62,28 @@ export function getUnlockerZone(): string {
   );
 }
 
-export { ZONES_URL };
+// ── Webshare (datacenter plan) ────────────────────────────────────────────────
+const WEBSHARE_DASH = "https://dashboard.webshare.io";
+
+export function getWebshareToken(): string {
+  return require_(
+    "WEBSHARE_API_TOKEN",
+    `Copy your Webshare API token from ${WEBSHARE_DASH}/userapi/keys.`
+  );
+}
+
+export function getWebshareUser(): string {
+  return require_(
+    "WEBSHARE_PROXY_USER",
+    `Copy the proxy username from the Webshare "Proxy > Settings" page (${WEBSHARE_DASH}).`
+  );
+}
+
+export function getWebsharePass(): string {
+  return require_(
+    "WEBSHARE_PROXY_PASS",
+    `Copy the proxy password from the Webshare "Proxy > Settings" page (${WEBSHARE_DASH}).`
+  );
+}
+
+export { ZONES_URL, WEBSHARE_DASH };

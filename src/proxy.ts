@@ -6,7 +6,7 @@ import { getCustomerId, getResidentialZone, getResidentialPass } from "./config.
 export const SUPERPROXY_HOST = "brd.superproxy.io";
 export const SUPERPROXY_PORT = 33335;
 
-export type Zone = "residential" | "unlocker";
+export type Zone = "residential" | "unlocker" | "webshare";
 
 export interface ProxyParts {
   /** http://host:port — what Playwright wants for `proxy.server`. */
