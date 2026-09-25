@@ -2,9 +2,10 @@ import { randomBytes } from "crypto";
 import { getCustomerId, getResidentialZone, getResidentialPass } from "./config.js";
 
 // Bright Data residential superproxy host/port. The same host serves all zones; the
-// zone + options are encoded into the username.
+// zone + options are encoded into the username. Port 44445 is the current SSL port
+// (22225/33335 were retired with the old root CA).
 export const SUPERPROXY_HOST = "brd.superproxy.io";
-export const SUPERPROXY_PORT = 33335;
+export const SUPERPROXY_PORT = 44445;
 
 export type Zone = "residential" | "unlocker" | "webshare";
 

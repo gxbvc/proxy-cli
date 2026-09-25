@@ -33,6 +33,6 @@ test("url embeds credentials against the superproxy", () => {
   const p = buildResidential({ session: "sticky1" });
   assert.equal(
     p.url,
-    "http://brd-customer-hl_test123-zone-residential-session-sticky1:secretpass@brd.superproxy.io:33335"
+    "http://brd-customer-hl_test123-zone-residential-session-sticky1:secretpass@brd.superproxy.io:44445"
   );
 });

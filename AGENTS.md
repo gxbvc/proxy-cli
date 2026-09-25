@@ -84,7 +84,7 @@ b = p.chromium.launch(headless=True, args=LAUNCH_ARGS, proxy=_proxy())   # rotat
 
 ```ruby
 require "json"
-url = JSON.parse(`proxy-cli url`)["data"]["url"]   # http://brd-customer-...:pass@brd.superproxy.io:33335
+url = JSON.parse(`proxy-cli url`)["data"]["url"]   # http://brd-customer-...:pass@brd.superproxy.io:44445
 ENV["https_proxy"] = url
 # open-uri / Net::HTTP now egress through a rotating residential IP
 ```

@@ -61,7 +61,7 @@ proxy-cli url --json                            # {server, username, password} f
 ```
 
 The URL is the documented superproxy shape:
-`http://brd-customer-<id>-zone-<zone>[-country-us][-session-<token>]:<pass>@brd.superproxy.io:33335`.
+`http://brd-customer-<id>-zone-<zone>[-country-us][-session-<token>]:<pass>@brd.superproxy.io:44445`.
 
 ### `proxy-cli fetch <url>`
 
