@@ -1,4 +1,10 @@
-import { getWebshareToken, getWebshareUser, getWebsharePass } from "./config.js";
+import {
+  getWebshareToken,
+  getWebshareUser,
+  getWebsharePass,
+  getWebshareResidentialUser,
+  getWebshareResidentialPass,
+} from "./config.js";
 
 // Webshare datacenter plan. Unlike Bright Data (one superproxy host + a zone-encoded
 // username), Webshare hands you a fixed pool of <ip:port> endpoints behind ONE
@@ -64,8 +70,29 @@ export interface WebshareParts {
   url: string;
   /** The endpoint ip:port chosen (stands in for the "session" — proves rotation). */
   session: string;
-  zone: "webshare";
+  zone: "webshare" | "webshare-residential";
   city?: string;
+}
+
+// Webshare rotating residential. One gateway host; the country and rotation mode are
+// encoded into the username (<user>-<cc>-rotate), and every new connection gets a
+// fresh residential exit IP. YouTube bot-checks most datacenter IPs but accepts these.
+export const WEBSHARE_RESIDENTIAL_HOST = "p.webshare.io";
+export const WEBSHARE_RESIDENTIAL_PORT = 80;
+
+export function buildWebshareResidential(opts: { country?: string } = {}): WebshareParts {
+  const cc = (opts.country ?? "us").toLowerCase();
+  const user = `${getWebshareResidentialUser()}-${cc}-rotate`;
+  const pass = getWebshareResidentialPass();
+  const hostport = `${WEBSHARE_RESIDENTIAL_HOST}:${WEBSHARE_RESIDENTIAL_PORT}`;
+  return {
+    server: `http://${hostport}`,
+    username: user,
+    password: pass,
+    url: `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${hostport}`,
+    session: "",
+    zone: "webshare-residential",
+  };
 }
 
 /**

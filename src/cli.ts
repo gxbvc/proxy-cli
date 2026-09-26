@@ -2,8 +2,8 @@ import { Command } from "commander";
 import { ok, err } from "./output.js";
 import { buildResidential, type Zone } from "./proxy.js";
 import { listZones, unlockerFetch } from "./client.js";
-import { residentialFetch, webshareFetch } from "./fetch.js";
-import { buildWebshare, usWebshareProxies } from "./webshare.js";
+import { residentialFetch, webshareFetch, webshareResidentialFetch } from "./fetch.js";
+import { buildWebshare, buildWebshareResidential, usWebshareProxies } from "./webshare.js";
 import { getUnlockerZone, ZONES_URL } from "./config.js";
 
 const program = new Command();
@@ -28,8 +28,8 @@ function fail(e: unknown, fallbackCode: string): never {
 program
   .command("url")
   .description("print a ready-to-use proxy URL (webshare datacenter by default; picks a fresh random US IP per call)")
-  .option("--zone <zone>", "webshare (default) | residential | unlocker", "webshare")
-  .option("--country <cc>", "residential only: two-letter country code, e.g. us")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | residential | unlocker", "webshare")
+  .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--session <id>", 'residential only: "rand" for a fresh sticky session, or a fixed token; omit for pure rotating')
   .option("--json", "emit {server, username, password} for Playwright proxy={...}")
   .action(async (opts) => {
@@ -51,6 +51,16 @@ program
         }
         return;
       }
+      if (opts.zone === "webshare-residential") {
+        // One rotating gateway URL: every new connection gets a fresh residential IP.
+        const p = buildWebshareResidential({ country: opts.country });
+        if (opts.json) {
+          ok({ server: p.server, username: p.username, password: p.password, zone: p.zone }, { pretty: pretty() });
+        } else {
+          ok({ url: p.url, zone: p.zone }, { pretty: pretty() });
+        }
+        return;
+      }
       const p = buildResidential({ session: opts.session, country: opts.country });
       if (opts.json) {
         ok({ server: p.server, username: p.username, password: p.password, session: p.session, zone: p.zone }, { pretty: pretty() });
@@ -67,9 +77,9 @@ program
   .command("fetch")
   .description("one-shot fetch of a URL through the proxy, returning the body")
   .argument("<url>", "target URL")
-  .option("--zone <zone>", "webshare (default) | residential | unlocker", "webshare")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | residential | unlocker", "webshare")
   .option("--render", "unlocker only: JS-render the page")
-  .option("--country <cc>", "residential only: two-letter country code, e.g. us")
+  .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--session <id>", "residential only: sticky session token (or 'rand')")
   .option("--timeout <ms>", "request timeout in ms", "60000")
   .option("--retries <n>", "retry count (rotates IP each retry)", "3")
@@ -91,6 +101,22 @@ program
             url,
             status: res.status,
             session: res.session, // the ip:port endpoint used
+            bytes: res.body.length,
+            body: res.body.toString("utf8"),
+          },
+          { pretty: pretty() }
+        );
+      } else if (zone === "webshare-residential") {
+        const res = await webshareResidentialFetch(url, {
+          country: opts.country,
+          timeoutMs: Number(opts.timeout),
+          retries: Number(opts.retries),
+        });
+        ok(
+          {
+            zone: "webshare-residential",
+            url,
+            status: res.status,
             bytes: res.body.length,
             body: res.body.toString("utf8"),
           },
@@ -147,12 +173,38 @@ program
 program
   .command("check")
   .description("auth + tiny test fetches, printing the egress IP (proves rotation). Default zone: webshare")
-  .option("--zone <zone>", "webshare (default) | residential", "webshare")
-  .option("--country <cc>", "residential only: two-letter country code, e.g. us")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | residential", "webshare")
+  .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--n <n>", "number of back-to-back rotating fetches", "3")
   .action(async (opts) => {
     const n = Math.max(1, Number(opts.n));
     try {
+      if (opts.zone === "webshare-residential") {
+        const ips: string[] = [];
+        let fetchErr: string | undefined;
+        for (let i = 0; i < n; i++) {
+          try {
+            const res = await webshareResidentialFetch("https://api.ipify.org?format=json", {
+              country: opts.country,
+              timeoutMs: 30_000,
+              retries: 2,
+            });
+            ips.push(JSON.parse(res.body.toString("utf8")).ip ?? "?");
+          } catch (e) {
+            fetchErr = e instanceof Error ? e.message : String(e);
+            break;
+          }
+        }
+        return ok(
+          {
+            zone: "webshare-residential",
+            egress_ips: ips,
+            rotated: new Set(ips).size > 1,
+            ...(fetchErr ? { fetch_error: fetchErr } : {}),
+          },
+          { pretty: pretty() }
+        );
+      }
       if (opts.zone === "webshare") {
         // Auth + pool check via the Webshare API, then tiny fetches each on a fresh IP.
         const pool = await usWebshareProxies();

@@ -22,10 +22,11 @@ and a fresh random US endpoint is chosen per `url`/`fetch`/retry call.
 
 ```bash
 proxy-cli url   [--zone webshare] [--json]                                            # print a ready-to-use proxy URL (random US datacenter IP)
+proxy-cli url   --zone webshare-residential [--country us] [--json]                    # Webshare rotating residential gateway URL (use for YouTube)
 proxy-cli url   --zone residential [--country us] [--session rand|<id>] [--json]      # Bright Data superproxy URL
-proxy-cli fetch <url> [--zone webshare|residential|unlocker] [--render] [--retries N] # one-shot fetch -> body
+proxy-cli fetch <url> [--zone webshare|webshare-residential|residential|unlocker] [--render] [--retries N] # one-shot fetch -> body
 proxy-cli zones                                                                       # list active Bright Data zones
-proxy-cli check [--zone webshare] [--n 3]                                             # auth + tiny fetches; prints egress IP(s), proves rotation
+proxy-cli check [--zone webshare|webshare-residential] [--n 3]                        # auth + tiny fetches; prints egress IP(s), proves rotation
 ```
 
 All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data":...}` / `{"ok":false,"error":...,"code":...}`.
@@ -36,6 +37,11 @@ All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data
   and returns `http://user:pass@ip:port`. `--json` returns `{server, username, password, city}`
   for Playwright's `proxy={...}`. Each call is a fresh random IP (per-session rotation). The
   returned `session` is the chosen `ip:port`.
+- `url --zone webshare-residential`: one gateway URL (`<user>-us-rotate@p.webshare.io:80`). Each new
+  connection gets a fresh residential IP. Use this for YouTube: Bright Data blocks YouTube on both
+  zones (`policy_20050`, KYC), and YouTube bot-checks most Webshare datacenter IPs. Pay per GB on
+  a separate Webshare account (christian@gxb.vc), so do not use it for bulk traffic that
+  datacenter handles.
 - `url --zone residential`: Bright Data superproxy URL with embedded creds. No `--session` = pure
   rotating (new IP per TCP connection); `--session rand` = sticky token (same IP for ~minutes);
   `--session foo` = a fixed sticky token you control.
@@ -56,6 +62,11 @@ Requires `.env` (this dir). The API key is auto-reused from `~/tools/brightdata-
 WEBSHARE_API_TOKEN            # dashboard.webshare.io/userapi/keys (lists the live IP pool)
 WEBSHARE_PROXY_USER           # proxy username (Proxy > Settings)
 WEBSHARE_PROXY_PASS           # proxy password
+
+# Webshare rotating residential (separate account: christian@gxb.vc)
+WEBSHARE_RESIDENTIAL_USER     # base proxy username, without -us-rotate
+WEBSHARE_RESIDENTIAL_PASS     # proxy password
+WEBSHARE_RESIDENTIAL_API_TOKEN # API key for that account (usage and plan checks)
 
 # Bright Data (residential + unlocker)
 BRIGHTDATA_API_KEY            # reused from brightdata-cli

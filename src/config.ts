@@ -86,4 +86,22 @@ export function getWebsharePass(): string {
   );
 }
 
+// ── Webshare (rotating residential plan) ──────────────────────────────────────
+// A separate account (christian@gxb.vc) from the datacenter plan, so it has its own
+// proxy user/pass. Dashboard > Residential > Proxy settings.
+
+export function getWebshareResidentialUser(): string {
+  return require_(
+    "WEBSHARE_RESIDENTIAL_USER",
+    `Copy the base residential proxy username (without -us-rotate) from ${WEBSHARE_DASH}.`
+  );
+}
+
+export function getWebshareResidentialPass(): string {
+  return require_(
+    "WEBSHARE_RESIDENTIAL_PASS",
+    `Copy the residential proxy password from ${WEBSHARE_DASH}.`
+  );
+}
+
 export { ZONES_URL, WEBSHARE_DASH };
