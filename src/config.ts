@@ -87,7 +87,7 @@ export function getWebsharePass(): string {
 }
 
 // ── Webshare (rotating residential plan) ──────────────────────────────────────
-// A separate account (christian@gxb.vc) from the datacenter plan, so it has its own
+// Same Webshare account as the datacenter plan, but the residential plan has its own
 // proxy user/pass. Dashboard > Residential > Proxy settings.
 
 export function getWebshareResidentialUser(): string {

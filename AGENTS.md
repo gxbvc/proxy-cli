@@ -39,9 +39,8 @@ All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data
   returned `session` is the chosen `ip:port`.
 - `url --zone webshare-residential`: one gateway URL (`<user>-us-rotate@p.webshare.io:80`). Each new
   connection gets a fresh residential IP. Use this for YouTube: Bright Data blocks YouTube on both
-  zones (`policy_20050`, KYC), and YouTube bot-checks most Webshare datacenter IPs. Pay per GB on
-  a separate Webshare account (christian@gxb.vc), so do not use it for bulk traffic that
-  datacenter handles.
+  zones (`policy_20050`, KYC), and YouTube bot-checks most Webshare datacenter IPs. It is pay per
+  GB (1 GB/month plan), so do not use it for bulk traffic that datacenter handles.
 - `url --zone residential`: Bright Data superproxy URL with embedded creds. No `--session` = pure
   rotating (new IP per TCP connection); `--session rand` = sticky token (same IP for ~minutes);
   `--session foo` = a fixed sticky token you control.
@@ -63,7 +62,7 @@ WEBSHARE_API_TOKEN            # dashboard.webshare.io/userapi/keys (lists the li
 WEBSHARE_PROXY_USER           # proxy username (Proxy > Settings)
 WEBSHARE_PROXY_PASS           # proxy password
 
-# Webshare rotating residential (separate account: christian@gxb.vc)
+# Webshare rotating residential (same account as datacenter; its own proxy login)
 WEBSHARE_RESIDENTIAL_USER     # base proxy username, without -us-rotate
 WEBSHARE_RESIDENTIAL_PASS     # proxy password
 WEBSHARE_RESIDENTIAL_API_TOKEN # API key for that account (usage and plan checks)
