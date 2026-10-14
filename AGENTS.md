@@ -105,3 +105,7 @@ ENV["https_proxy"] = url
 npm install && npm run build && npm link
 npm test     # builds first, then node --test
 ```
+
+## Put the residential login into a Rails app (no printing)
+
+`BUNDLE_GEMFILE=<app>/Gemfile bundle exec ruby ~/tools/proxy-cli/bin/add-webshare-residential-credentials.rb <app dir>` copies WEBSHARE_RESIDENTIAL_USER and _PASS from this tool's .env into `<app>/config/credentials.yml.enc` as `webshare_residential.user` and `.pass`, prints only lengths, and refuses to run twice. The app builds `http://<user>-us-rotate:<pass>@p.webshare.io:80` at call time (rotating US residential; login based, no IP allow-list). The plan is 1 GB a month and is shared by all GXB uses: meter your own bytes.
