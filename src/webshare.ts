@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import {
   getWebshareToken,
   getWebshareUser,
@@ -70,7 +73,7 @@ export interface WebshareParts {
   url: string;
   /** The endpoint ip:port chosen (stands in for the "session" — proves rotation). */
   session: string;
-  zone: "webshare" | "webshare-residential";
+  zone: "webshare" | "webshare-residential" | "webshare-isp";
   city?: string;
 }
 
@@ -121,4 +124,66 @@ export async function buildWebshare(opts: { force?: boolean } = {}): Promise<Web
     zone: "webshare",
     city: pick.city_name,
   };
+}
+
+// Webshare ISP plan (Private Static Residential, 14576946). A fixed list of dedicated
+// US IPs behind per-plan logins. The list file sits next to .env (mode 600, git-ignored),
+// one `host:port:user:pass` per line, or a full http://user:pass@host:port URL. Override
+// the path with WEBSHARE_ISP_LIST. Refresh it from the API, see AGENTS.md.
+const __dirname_isp = dirname(fileURLToPath(import.meta.url));
+
+export function ispListPath(): string {
+  return process.env.WEBSHARE_ISP_LIST || join(__dirname_isp, "../webshare-isp.txt");
+}
+
+export function parseIspLine(line: string): WebshareParts | null {
+  const l = line.trim().replace(/\r/g, "");
+  if (!l || l.startsWith("#")) return null;
+  let host: string, port: string, user: string, pass: string;
+  if (l.includes("://")) {
+    const u = new URL(l);
+    host = u.hostname;
+    port = u.port;
+    user = decodeURIComponent(u.username);
+    pass = decodeURIComponent(u.password);
+  } else {
+    [host, port, user, pass] = l.split(":", 4) as [string, string, string, string];
+  }
+  if (!host || !port || !user) return null;
+  const hostport = `${host}:${port}`;
+  return {
+    server: `http://${hostport}`,
+    username: user,
+    password: pass ?? "",
+    url: `http://${encodeURIComponent(user)}:${encodeURIComponent(pass ?? "")}@${hostport}`,
+    session: hostport,
+    zone: "webshare-isp",
+  };
+}
+
+export function ispProxies(): WebshareParts[] {
+  const path = ispListPath();
+  if (!existsSync(path)) {
+    const e = new Error(
+      `ISP proxy list not found at ${path}. Put the plan's list there (mode 600), one host:port:user:pass per line.`
+    ) as Error & { code: string };
+    e.code = "MISSING_CONFIG";
+    throw e;
+  }
+  const list = readFileSync(path, "utf8")
+    .split("\n")
+    .map(parseIspLine)
+    .filter((p): p is WebshareParts => p !== null);
+  if (list.length === 0) {
+    const e = new Error(`ISP proxy list at ${path} has no usable lines.`) as Error & { code: string };
+    e.code = "MISSING_CONFIG";
+    throw e;
+  }
+  return list;
+}
+
+/** A random dedicated ISP IP from the list file. */
+export function buildWebshareIsp(): WebshareParts {
+  const list = ispProxies();
+  return list[Math.floor(Math.random() * list.length)];
 }

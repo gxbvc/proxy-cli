@@ -2,8 +2,8 @@ import { Command } from "commander";
 import { ok, err } from "./output.js";
 import { buildResidential, type Zone } from "./proxy.js";
 import { listZones, unlockerFetch } from "./client.js";
-import { residentialFetch, webshareFetch, webshareResidentialFetch } from "./fetch.js";
-import { buildWebshare, buildWebshareResidential, usWebshareProxies } from "./webshare.js";
+import { residentialFetch, webshareFetch, webshareIspFetch, webshareResidentialFetch } from "./fetch.js";
+import { buildWebshare, buildWebshareIsp, buildWebshareResidential, ispProxies, usWebshareProxies } from "./webshare.js";
 import { getUnlockerZone, ZONES_URL } from "./config.js";
 
 const program = new Command();
@@ -28,7 +28,7 @@ function fail(e: unknown, fallbackCode: string): never {
 program
   .command("url")
   .description("print a ready-to-use proxy URL (webshare datacenter by default; picks a fresh random US IP per call)")
-  .option("--zone <zone>", "webshare (default) | webshare-residential | residential | unlocker", "webshare")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | webshare-isp | residential | unlocker", "webshare")
   .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--session <id>", 'residential only: "rand" for a fresh sticky session, or a fixed token; omit for pure rotating')
   .option("--json", "emit {server, username, password} for Playwright proxy={...}")
@@ -48,6 +48,16 @@ program
           ok({ server: p.server, username: p.username, password: p.password, session: p.session, zone: p.zone, city: p.city }, { pretty: pretty() });
         } else {
           ok({ url: p.url, session: p.session, zone: p.zone, city: p.city }, { pretty: pretty() });
+        }
+        return;
+      }
+      if (opts.zone === "webshare-isp") {
+        // A random dedicated ISP IP from the list file next to .env.
+        const p = buildWebshareIsp();
+        if (opts.json) {
+          ok({ server: p.server, username: p.username, password: p.password, session: p.session, zone: p.zone }, { pretty: pretty() });
+        } else {
+          ok({ url: p.url, session: p.session, zone: p.zone }, { pretty: pretty() });
         }
         return;
       }
@@ -77,7 +87,7 @@ program
   .command("fetch")
   .description("one-shot fetch of a URL through the proxy, returning the body")
   .argument("<url>", "target URL")
-  .option("--zone <zone>", "webshare (default) | webshare-residential | residential | unlocker", "webshare")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | webshare-isp | residential | unlocker", "webshare")
   .option("--render", "unlocker only: JS-render the page")
   .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--session <id>", "residential only: sticky session token (or 'rand')")
@@ -101,6 +111,22 @@ program
             url,
             status: res.status,
             session: res.session, // the ip:port endpoint used
+            bytes: res.body.length,
+            body: res.body.toString("utf8"),
+          },
+          { pretty: pretty() }
+        );
+      } else if (zone === "webshare-isp") {
+        const res = await webshareIspFetch(url, {
+          timeoutMs: Number(opts.timeout),
+          retries: Number(opts.retries),
+        });
+        ok(
+          {
+            zone: "webshare-isp",
+            url,
+            status: res.status,
+            session: res.session,
             bytes: res.body.length,
             body: res.body.toString("utf8"),
           },
@@ -173,12 +199,37 @@ program
 program
   .command("check")
   .description("auth + tiny test fetches, printing the egress IP (proves rotation). Default zone: webshare")
-  .option("--zone <zone>", "webshare (default) | webshare-residential | residential", "webshare")
+  .option("--zone <zone>", "webshare (default) | webshare-residential | webshare-isp | residential", "webshare")
   .option("--country <cc>", "residential zones only: two-letter country code, e.g. us")
   .option("--n <n>", "number of back-to-back rotating fetches", "3")
   .action(async (opts) => {
     const n = Math.max(1, Number(opts.n));
     try {
+      if (opts.zone === "webshare-isp") {
+        const pool = ispProxies();
+        const ips: { session: string; ip: string }[] = [];
+        let fetchErr: string | undefined;
+        for (let i = 0; i < n; i++) {
+          try {
+            const res = await webshareIspFetch("https://api.ipify.org?format=json", { timeoutMs: 30_000, retries: 2 });
+            const j = JSON.parse(res.body.toString("utf8"));
+            ips.push({ session: res.session, ip: j.ip ?? "?" });
+          } catch (e) {
+            fetchErr = e instanceof Error ? e.message : String(e);
+            break;
+          }
+        }
+        return ok(
+          {
+            zone: "webshare-isp",
+            pool_size: pool.length,
+            egress_ips: ips,
+            rotated: new Set(ips.map((x) => x.ip)).size > 1,
+            ...(fetchErr ? { fetch_error: fetchErr } : {}),
+          },
+          { pretty: pretty() }
+        );
+      }
       if (opts.zone === "webshare-residential") {
         const ips: string[] = [];
         let fetchErr: string | undefined;

@@ -24,9 +24,10 @@ and a fresh random US endpoint is chosen per `url`/`fetch`/retry call.
 proxy-cli url   [--zone webshare] [--json]                                            # print a ready-to-use proxy URL (random US datacenter IP)
 proxy-cli url   --zone webshare-residential [--country us] [--json]                    # Webshare rotating residential gateway URL (use for YouTube)
 proxy-cli url   --zone residential [--country us] [--session rand|<id>] [--json]      # Bright Data superproxy URL
-proxy-cli fetch <url> [--zone webshare|webshare-residential|residential|unlocker] [--render] [--retries N] # one-shot fetch -> body
+proxy-cli fetch <url> [--zone webshare|webshare-residential|webshare-isp|residential|unlocker] [--render] [--retries N] # one-shot fetch -> body
+proxy-cli url   --zone webshare-isp [--json]                                               # Webshare ISP plan (20 dedicated static US IPs), random IP from webshare-isp.txt
 proxy-cli zones                                                                       # list active Bright Data zones
-proxy-cli check [--zone webshare|webshare-residential] [--n 3]                        # auth + tiny fetches; prints egress IP(s), proves rotation
+proxy-cli check [--zone webshare|webshare-residential|webshare-isp] [--n 3]                        # auth + tiny fetches; prints egress IP(s), proves rotation
 ```
 
 All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data":...}` / `{"ok":false,"error":...,"code":...}`.
@@ -51,6 +52,7 @@ All commands take `--pretty`. Output is the standard envelope: `{"ok":true,"data
   JS-renders. For sites where a raw residential GET still gets bot-blocked.
 - `check --zone webshare` (default): lists the US pool, then back-to-back fetches of
   `api.ipify.org`, each on a fresh endpoint, printing distinct egress IPs (`rotated:true`).
+- `url|fetch|check --zone webshare-isp`: Webshare ISP plan 14576946 (Private Static Residential, 20 dedicated US IPs, 250 GB a month, bought 2026-10-15, #1450). It is a fixed list, so the list sits in a file next to this `.env`: `webshare-isp.txt`, mode 600, git-ignored, one `host:port:user:pass` per line (override the path with `WEBSHARE_ISP_LIST`). Each call picks a random IP from the file. The file exists on the Mac and on beelink. Refresh it after Webshare replaces an IP: download `GET https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page_size=100&plan_id=14576946` with `WEBSHARE_API_TOKEN` straight into the file (mode 600) and never print it. The login has its own username but the same password as the datacenter and residential plans, so a password reset on one plan changes all three: plan a reset with gov and transcribe in one window. Use it for work that datacenter IPs cannot do (YouTube audio, Granicus). It is metered at 250 GB a month, so meter your own bytes.
 
 ## Env
 

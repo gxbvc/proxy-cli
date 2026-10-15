@@ -3,7 +3,7 @@ import https from "https";
 import { connect as tlsConnect } from "tls";
 import { URL } from "url";
 import { buildResidential, type BuildOpts, type ProxyParts } from "./proxy.js";
-import { buildWebshare, buildWebshareResidential } from "./webshare.js";
+import { buildWebshare, buildWebshareIsp, buildWebshareResidential } from "./webshare.js";
 
 export interface FetchResult {
   status: number;
@@ -227,4 +227,36 @@ export async function webshareResidentialFetch(
     }
   }
   throw lastErr ?? new Error("webshare residential fetch failed");
+}
+
+/**
+ * Fetch through a Webshare ISP IP (dedicated static US list, webshare-isp.txt). Each
+ * attempt picks a random IP from the list, so a retry lands on a different exit IP.
+ */
+export async function webshareIspFetch(
+  target: string,
+  opts: WebshareFetchOpts = {}
+): Promise<FetchResult> {
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const retries = opts.retries ?? 3;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const proxy = buildWebshareIsp();
+    try {
+      const res = await fetchOnce(target, proxy, timeoutMs);
+      if ((res.status === 429 || res.status === 403 || res.status >= 500) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)));
+        continue;
+      }
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)));
+        continue;
+      }
+    }
+  }
+  throw lastErr ?? new Error("webshare isp fetch failed");
 }
